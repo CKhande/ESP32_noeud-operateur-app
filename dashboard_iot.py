@@ -66,7 +66,8 @@ def on_message(client, userdata, msg):
 # ---------------------------------------------------------
 BROKER = "172.161.53.116"
 PORT = 1883
-TOPIC = "esp32/noeud"
+TOPIC = "noeud/operateur"
+
 
 
 client = mqtt.Client()
@@ -125,4 +126,5 @@ if len(df) > 2:
     st.line_chart(df[["ir"]])
 else:
     st.info("En attente de données MQTT...")
+
 
