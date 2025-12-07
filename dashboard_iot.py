@@ -1,6 +1,5 @@
 # ---------------------------------------------------------
-#  DASHBOARD STREAMLIT EN TEMPS RÉEL (MQTT → GAUGES + GRAPH)
-#  Version 100% compatible Streamlit Cloud
+#  DASHBOARD STREAMLIT 100% CLOUD COMPATIBLE (MQTT + GAUGES)
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -8,7 +7,7 @@ import paho.mqtt.client as mqtt
 import json
 import pandas as pd
 import time
-from streamlit_echarts import st_echarts
+import plotly.graph_objects as go
 
 # ---------------------------------------------------------
 #  CONFIG STREAMLIT
@@ -19,13 +18,12 @@ st.title("📡 Dashboard ESP32 - Temps Réel")
 st.write("Données reçues via MQTT (⚠️ Broker Cloud requis)")
 
 # ---------------------------------------------------------
-#  AUTO REFRESH COMPATIBLE STREAMLIT CLOUD
+#  AUTO REFRESH CLOUD
 # ---------------------------------------------------------
-# Force la page à se rafraîchir en changeant l'URL à chaque chargement
-st.experimental_set_query_params(ts=str(time.time()))
+st.experimental_set_query_params(t=str(time.time()))
 
 # ---------------------------------------------------------
-#  SESSION STATE (SAVE DATA)
+#  SESSION STATE
 # ---------------------------------------------------------
 if "data" not in st.session_state:
     st.session_state.data = {"temperature": 0, "humidite": 0, "pot": 0, "ir": 0}
@@ -64,9 +62,8 @@ def on_message(client, userdata, msg):
         print("Erreur JSON :", e)
 
 # ---------------------------------------------------------
-#  MQTT CONNECTION (CLOUD COMPATIBLE)
+#  MQTT CONNECTION
 # ---------------------------------------------------------
-
 BROKER = "broker.hivemq.com"
 PORT = 1883
 TOPIC = "esp32/noeud"
@@ -81,38 +78,38 @@ try:
 except:
     st.error("❌ Impossible de se connecter au broker MQTT (Cloud)")
 
-# ---------------------------------------------------------
-#  GAUGE FUNCTION
-# ---------------------------------------------------------
-def gauge(label, value, minv, maxv, color):
-    option = {
-        "series": [{
-            "type": "gauge",
-            "progress": {"show": True, "width": 15},
-            "axisLine": {"lineStyle": {"width": 15, "color": [[1, color]]}},
-            "pointer": {"itemStyle": {"color": "#444"}},
-            "detail": {"formatter": "{value}", "fontSize": 20},
-            "data": [{"value": value, "name": label}],
-            "min": minv,
-            "max": maxv
-        }]
-    }
-    st_echarts(option, height="260px")
 
 # ---------------------------------------------------------
-#  DISPLAY GAUGES
+#  PLOTLY GAUGE
 # ---------------------------------------------------------
-data = st.session_state.data
+def plot_gauge(value, title, minv, maxv, color):
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=value,
+        title={"text": title},
+        gauge={
+            "axis": {"range": [minv, maxv]},
+            "bar": {"color": color},
+        }
+    ))
+    fig.update_layout(height=280, margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------------
+#  GAUGES DISPLAY
+# ---------------------------------------------------------
+d = st.session_state.data
 
 col1, col2, col3, col4 = st.columns(4)
+
 with col1:
-    gauge("Température (°C)", data["temperature"], 0, 100, "#FF4B4B")
+    plot_gauge(d["temperature"], "Température (°C)", 0, 100, "red")
 with col2:
-    gauge("Humidité (%)", data["humidite"], 0, 100, "#3A7DFF")
+    plot_gauge(d["humidite"], "Humidité (%)", 0, 100, "blue")
 with col3:
-    gauge("Potentiomètre", data["pot"], 0, 4095, "#FFA500")
+    plot_gauge(d["pot"], "Potentiomètre", 0, 4095, "orange")
 with col4:
-    gauge("IR (Flamme)", data["ir"], 0, 1, "#00CC66" if data["ir"] == 0 else "#FF0000")
+    plot_gauge(d["ir"], "IR (Flamme)", 0, 1, "green" if d["ir"] == 0 else "red")
 
 # ---------------------------------------------------------
 #  GRAPHES
