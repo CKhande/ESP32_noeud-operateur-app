@@ -64,9 +64,10 @@ def on_message(client, userdata, msg):
 # ---------------------------------------------------------
 #  MQTT CONNECTION
 # ---------------------------------------------------------
-BROKER = "broker.hivemq.com"
+BROKER = "172.161.53.116"
 PORT = 1883
 TOPIC = "esp32/noeud"
+
 
 client = mqtt.Client()
 client.on_message = on_message
@@ -124,3 +125,4 @@ if len(df) > 2:
     st.line_chart(df[["ir"]])
 else:
     st.info("En attente de données MQTT...")
+
