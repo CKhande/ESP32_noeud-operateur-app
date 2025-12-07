@@ -1,5 +1,6 @@
 # ---------------------------------------------------------
 #  DASHBOARD STREAMLIT EN TEMPS RÉEL (MQTT → GAUGES + GRAPH)
+#  Version 100% compatible Streamlit Cloud
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -13,15 +14,18 @@ from streamlit_echarts import st_echarts
 #  CONFIG STREAMLIT
 # ---------------------------------------------------------
 st.set_page_config(page_title="Dashboard ESP32", layout="wide")
-st.title("📡 Dashboard ESP32 - Temps Réel")
 
+st.title("📡 Dashboard ESP32 - Temps Réel")
 st.write("Données reçues via MQTT (⚠️ Broker Cloud requis)")
 
-# AUTO REFRESH PROPRE
-st.autorefresh(interval=1000, key="refresh")
+# ---------------------------------------------------------
+#  AUTO REFRESH COMPATIBLE STREAMLIT CLOUD
+# ---------------------------------------------------------
+# Force la page à se rafraîchir en changeant l'URL à chaque chargement
+st.experimental_set_query_params(ts=str(time.time()))
 
 # ---------------------------------------------------------
-#  SESSION STATE (PERSISTANCE)
+#  SESSION STATE (SAVE DATA)
 # ---------------------------------------------------------
 if "data" not in st.session_state:
     st.session_state.data = {"temperature": 0, "humidite": 0, "pot": 0, "ir": 0}
@@ -36,7 +40,7 @@ if "history" not in st.session_state:
     }
 
 # ---------------------------------------------------------
-#  CALLBACK MQTT
+#  MQTT CALLBACK
 # ---------------------------------------------------------
 def on_message(client, userdata, msg):
     try:
@@ -59,12 +63,11 @@ def on_message(client, userdata, msg):
     except Exception as e:
         print("Erreur JSON :", e)
 
-
 # ---------------------------------------------------------
-#  CONNEXION MQTT (Cloud-compatible broker only!)
+#  MQTT CONNECTION (CLOUD COMPATIBLE)
 # ---------------------------------------------------------
 
-BROKER = "broker.hivemq.com"     # Ton nouveau broker cloud
+BROKER = "broker.hivemq.com"
 PORT = 1883
 TOPIC = "esp32/noeud"
 
@@ -76,10 +79,10 @@ try:
     client.subscribe(TOPIC)
     client.loop_start()
 except:
-    st.error("❌ Streamlit Cloud ne peut PAS se connecter au broker MQTT actuel.")
+    st.error("❌ Impossible de se connecter au broker MQTT (Cloud)")
 
 # ---------------------------------------------------------
-#  GAUGES ECHARTS
+#  GAUGE FUNCTION
 # ---------------------------------------------------------
 def gauge(label, value, minv, maxv, color):
     option = {
@@ -94,19 +97,22 @@ def gauge(label, value, minv, maxv, color):
             "max": maxv
         }]
     }
-    st_echarts(option, height="250px")
-
+    st_echarts(option, height="260px")
 
 # ---------------------------------------------------------
-#  AFFICHAGE GAUGES
+#  DISPLAY GAUGES
 # ---------------------------------------------------------
 data = st.session_state.data
 
 col1, col2, col3, col4 = st.columns(4)
-with col1: gauge("Température (°C)", data["temperature"], 0, 100, "#FF4B4B")
-with col2: gauge("Humidité (%)", data["humidite"], 0, 100, "#3A7DFF")
-with col3: gauge("Potentiomètre", data["pot"], 0, 4095, "#FFA500")
-with col4: gauge("IR (Flamme)", data["ir"], 0, 1, "#00CC66" if data["ir"] == 0 else "#FF0000")
+with col1:
+    gauge("Température (°C)", data["temperature"], 0, 100, "#FF4B4B")
+with col2:
+    gauge("Humidité (%)", data["humidite"], 0, 100, "#3A7DFF")
+with col3:
+    gauge("Potentiomètre", data["pot"], 0, 4095, "#FFA500")
+with col4:
+    gauge("IR (Flamme)", data["ir"], 0, 1, "#00CC66" if data["ir"] == 0 else "#FF0000")
 
 # ---------------------------------------------------------
 #  GRAPHES
