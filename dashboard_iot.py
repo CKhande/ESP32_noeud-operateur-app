@@ -23,7 +23,7 @@ if "history" not in st.session_state:
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
-BROKER = "51.103.239.173"
+BROKER = "172.161.53.116"
 PORT = 1883
 TOPIC = "noeud/operateur"
 
@@ -124,4 +124,5 @@ else:
 
 # AUTO REFRESH
 st.experimental_rerun()
+
 
