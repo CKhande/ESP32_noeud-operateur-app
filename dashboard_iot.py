@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# DASHBOARD STREAMLIT (POLLING MQTT SANS THREAD)
+# DASHBOARD STREAMLIT (POLLING MQTT + COMMANDES LED)
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -20,19 +20,35 @@ if "history" not in st.session_state:
         "time": [], "temperature": [], "humidite": [], "pot": [], "ir": []
     }
 
+if "led_state" not in st.session_state:
+    st.session_state.led_state = 0  # LED OFF par défaut
+
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
 BROKER = "172.161.53.116"
 PORT = 1883
 TOPIC = "noeud/operateur"
+TOPIC_CMD = "noeud/operateur/cmd"   # <-- TOPIC COMMANDES LED
 
 # ---------------------------------------------------------
-# POLLING MQTT: on se connecte, lit un message, on ferme
+# FONCTION POUR ENVOYER UNE COMMANDE LED
+# ---------------------------------------------------------
+def send_led_command(state):
+    client = mqtt.Client()
+    try:
+        client.connect(BROKER, PORT, 60)
+        payload = json.dumps({"led": state})
+        client.publish(TOPIC_CMD, payload)
+        client.disconnect()
+    except Exception as e:
+        st.error(f"Erreur MQTT LED: {e}")
+
+# ---------------------------------------------------------
+# POLLING MQTT: on lit un message par appel
 # ---------------------------------------------------------
 def poll_mqtt():
     client = mqtt.Client()
-
     messages = []
 
     def on_message(client, userdata, msg):
@@ -47,28 +63,25 @@ def poll_mqtt():
         client.connect(BROKER, PORT, 60)
         client.subscribe(TOPIC)
         client.loop_start()
-        time.sleep(0.5)      # attendre un message
+        time.sleep(0.5)
         client.loop_stop()
         client.disconnect()
     except:
         return None
 
     if messages:
-        return messages[-1]  # dernier message reçu
+        return messages[-1]
     return None
 
 
 # ---------------------------------------------------------
-# LECTURE DES DONNÉES
+# LECTURE DES DONNEES
 # ---------------------------------------------------------
 raw = poll_mqtt()
 
 if raw:
-    print("Message MQTT :", raw)  # visible dans logs Cloud
-
     try:
         payload = json.loads(raw)
-
         st.session_state.data.update({
             "temperature": payload.get("temperature", 0),
             "humidite": payload.get("humidite", 0),
@@ -88,11 +101,11 @@ if raw:
         st.write("Erreur JSON :", raw)
 
 # ---------------------------------------------------------
-# UI
+# UI PRINCIPALE
 # ---------------------------------------------------------
 
 st.title("📡 Dashboard ESP32 - Temps Réel")
-st.write("Données reçues via MQTT (Polling Cloud Compatible)")
+st.write("Données reçues via MQTT + Contrôle LED IO2")
 
 d = st.session_state.data
 
@@ -112,6 +125,24 @@ with col2: plot_gauge(d["humidite"], "Humidité (%)", 0, 100, "blue")
 with col3: plot_gauge(d["pot"], "Potentiomètre", 0, 4095, "orange")
 with col4: plot_gauge(d["ir"], "IR (Flamme)", 0, 1, "green" if d["ir"] == 0 else "red")
 
+# ---------------------------------------------------------
+# CONTROLE LED IO2
+# ---------------------------------------------------------
+st.subheader("💡 Contrôle LED IO2")
+
+if st.button("Allumer LED IO2 🔵"):
+    st.session_state.led_state = 1
+    send_led_command(1)
+    st.success("LED IO2 allumée")
+
+if st.button("Éteindre LED IO2 ⚫"):
+    st.session_state.led_state = 0
+    send_led_command(0)
+    st.success("LED IO2 éteinte")
+
+# ---------------------------------------------------------
+# GRAPHIQUES TEMPS RÉEL
+# ---------------------------------------------------------
 st.subheader("📈 Graphiques en temps réel")
 df = pd.DataFrame(st.session_state.history)
 
@@ -123,6 +154,4 @@ else:
     st.info("En attente de premières données MQTT…")
 
 # AUTO REFRESH
-st.experimental_rerun()
-
-
+st.rerun()
