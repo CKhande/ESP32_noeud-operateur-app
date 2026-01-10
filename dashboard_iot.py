@@ -26,7 +26,7 @@ if "led_state" not in st.session_state:
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
-BROKER = "172.161.53.116"
+BROKER = "51.103.239.173"
 PORT = 1883
 TOPIC = "noeud/operateur"
 TOPIC_CMD = "noeud/operateur/cmd"   # Commande LED IO2
@@ -174,3 +174,4 @@ else:
 
 # AUTO REFRESH TOUTES LES SECONDES
 st.rerun()
+
