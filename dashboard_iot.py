@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# DASHBOARD STREAMLIT (POLLING MQTT + COMMANDES LED RGB)
+# DASHBOARD STREAMLIT (POLLING MQTT + COMMANDES LED)
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -21,31 +21,25 @@ if "history" not in st.session_state:
     }
 
 if "led_state" not in st.session_state:
-    st.session_state.led_state = 0  # OFF par défaut
+    st.session_state.led_state = 0  # LED OFF par défaut
 
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
 BROKER = "51.103.239.173"
 PORT = 1883
-
-TOPIC_DATA = "noeud/operateur"
-TOPIC_CMD  = "noeud/operateur/cmd"   # Commande LED RGB partagée
+TOPIC = "noeud/operateur"
+TOPIC_CMD = "noeud/operateur/cmd"   # Commande LED IO2
 
 # ---------------------------------------------------------
-# ENVOI COMMANDE LED RGB (ROUGE)
+# ENVOI COMMANDE LED
 # ---------------------------------------------------------
 def send_led_command(state):
     client = mqtt.Client()
     try:
         client.connect(BROKER, PORT, 60)
-
-        if state == 1:
-            payload = json.dumps({"rgb": "red"})   # 🔴 ROUGE
-        else:
-            payload = json.dumps({"rgb": "off"})   # OFF
-
-        client.publish(TOPIC_CMD, payload, qos=0, retain=False)
+        payload = json.dumps({"led": state})
+        client.publish(TOPIC_CMD, payload)
         client.disconnect()
     except Exception as e:
         st.error(f"Erreur MQTT LED: {e}")
@@ -67,7 +61,7 @@ def poll_mqtt():
 
     try:
         client.connect(BROKER, PORT, 60)
-        client.subscribe(TOPIC_DATA)
+        client.subscribe(TOPIC)
         client.loop_start()
         time.sleep(0.5)
         client.loop_stop()
@@ -109,9 +103,9 @@ if raw:
 # ---------------------------------------------------------
 # UI PRINCIPALE
 # ---------------------------------------------------------
-st.set_page_config(page_title="Dashboard ESP32", layout="centered")
+
 st.title("📡 Dashboard ESP32 - Temps Réel")
-st.write("Contrôle LED RGB – ROUGE (27R, 26G, 25B)")
+st.write("Données reçues via MQTT + Contrôle LED IO2")
 
 d = st.session_state.data
 
@@ -139,28 +133,28 @@ with col3:
     plot_gauge(d["pot"], "Potentiomètre", 0, 4095, "orange")
 
 with col4:
-    plot_gauge(d["ir"], "IR (Flamme)", 0, 1, "red" if d["ir"] == 1 else "green")
+    plot_gauge(d["ir"], "IR (Flamme)", 0, 1, "green" if d["ir"] == 0 else "red")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 🔴 CONTRÔLE LED RGB ROUGE
+# 🟦 CONTRÔLE LED IO2 (PLACÉ JUSTE APRÈS LES GAUGES)
 # ---------------------------------------------------------
-st.header("🔴 Contrôle LED RGB (ROUGE)")
+st.header("💡 Contrôle de la LED IO2 (ESP32)")
 
 colA, colB = st.columns(2)
 
 with colA:
-    if st.button("🔴 ALLUMER LED ROUGE"):
+    if st.button("🔵 Allumer la LED IO2"):
         st.session_state.led_state = 1
         send_led_command(1)
-        st.success("LED RGB ROUGE allumée sur les deux ESP32")
+        st.success("LED IO2 allumée")
 
 with colB:
-    if st.button("⚫ ÉTEINDRE LED RGB"):
+    if st.button("⚫ Éteindre la LED IO2"):
         st.session_state.led_state = 0
         send_led_command(0)
-        st.success("LED RGB éteinte sur les deux ESP32")
+        st.success("LED IO2 éteinte")
 
 st.markdown("---")
 
@@ -178,5 +172,5 @@ if len(df) > 1:
 else:
     st.info("En attente de premières données MQTT…")
 
-# AUTO REFRESH
+# AUTO REFRESH TOUTES LES SECONDES
 st.rerun()
