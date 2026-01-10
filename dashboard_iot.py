@@ -1,5 +1,5 @@
 # ---------------------------------------------------------
-# DASHBOARD STREAMLIT (POLLING MQTT + COMMANDES LED)
+# DASHBOARD STREAMLIT (MQTT + LED RGB VIOLETTE PARTAGÉE)
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -20,40 +20,35 @@ if "history" not in st.session_state:
         "time": [], "temperature": [], "humidite": [], "pot": [], "ir": []
     }
 
-if "led_state" not in st.session_state:
-    st.session_state.led_state = 0  # LED OFF par défaut
-
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
 BROKER = "51.103.239.173"
 PORT = 1883
-TOPIC = "noeud/operateur"
 
-# 🔴 MODIF : topic LED COMMUN (opérateur + détection)
-TOPIC_CMD = "noeud/operateur/cmd"
+TOPIC_DATA = "noeud/operateur"
+TOPIC_CMD  = "noeud/operateur/cmd"   # LED RGB partagée
 
 # ---------------------------------------------------------
-# ENVOI COMMANDE LED (MOI + ELLE)
+# ENVOI COMMANDE LED RGB
 # ---------------------------------------------------------
-def send_led_command(state):
+def send_rgb_command(mode):
     client = mqtt.Client()
     try:
         client.connect(BROKER, PORT, 60)
 
+        # mode = "violet" ou "off"
         payload = json.dumps({
-            "led": state
+            "rgb": mode
         })
 
-        # 🔴 MODIF : publication UNIQUE → les deux ESP32 reçoivent
         client.publish(TOPIC_CMD, payload, qos=0, retain=False)
-
         client.disconnect()
     except Exception as e:
-        st.error(f"Erreur MQTT LED: {e}")
+        st.error(f"Erreur MQTT RGB: {e}")
 
 # ---------------------------------------------------------
-# POLLING MQTT
+# POLLING MQTT (DONNÉES)
 # ---------------------------------------------------------
 def poll_mqtt():
     client = mqtt.Client()
@@ -69,7 +64,7 @@ def poll_mqtt():
 
     try:
         client.connect(BROKER, PORT, 60)
-        client.subscribe(TOPIC)
+        client.subscribe(TOPIC_DATA)
         client.loop_start()
         time.sleep(0.5)
         client.loop_stop()
@@ -111,8 +106,9 @@ if raw:
 # ---------------------------------------------------------
 # UI PRINCIPALE
 # ---------------------------------------------------------
-st.title("📡 Dashboard ESP32 - Temps Réel")
-st.write("Données reçues via MQTT + Contrôle LED IO2 partagé")
+st.set_page_config(page_title="Dashboard ESP32", layout="centered")
+st.title("📡 Dashboard ESP32 – MQTT")
+st.write("Contrôle LED RGB violette (R=27, G=26, B=25)")
 
 d = st.session_state.data
 
@@ -145,30 +141,28 @@ with col4:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 💡 CONTRÔLE LED IO2 (MOI + NOEUD DÉTECTION)
+# 💡 CONTRÔLE LED RGB (VIOLET)
 # ---------------------------------------------------------
-st.header("💡 Contrôle LED IO2 (ESP32 partagé)")
+st.header("💡 LED RGB – Commande partagée")
 
 colA, colB = st.columns(2)
 
 with colA:
-    if st.button("🔵 Allumer la LED IO2 (MOI + ELLE)"):
-        st.session_state.led_state = 1
-        send_led_command(1)
-        st.success("LED IO2 ALLUMÉE sur les deux ESP32")
+    if st.button("🟣 ALLUMER LED RGB (VIOLET)"):
+        send_rgb_command("violet")
+        st.success("LED RGB VIOLETTE allumée sur les deux ESP32")
 
 with colB:
-    if st.button("⚫ Éteindre la LED IO2 (MOI + ELLE)"):
-        st.session_state.led_state = 0
-        send_led_command(0)
-        st.success("LED IO2 ÉTEINTE sur les deux ESP32")
+    if st.button("⚫ ÉTEINDRE LED RGB"):
+        send_rgb_command("off")
+        st.success("LED RGB éteinte sur les deux ESP32")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# GRAPHIQUES TEMPS RÉEL
+# GRAPHIQUES
 # ---------------------------------------------------------
-st.subheader("📈 Graphiques en temps réel")
+st.subheader("📈 Graphiques temps réel")
 
 df = pd.DataFrame(st.session_state.history)
 
@@ -177,7 +171,7 @@ if len(df) > 1:
     st.line_chart(df["pot"])
     st.line_chart(df["ir"])
 else:
-    st.info("En attente de premières données MQTT…")
+    st.info("En attente de données MQTT…")
 
 # AUTO REFRESH
 st.rerun()
