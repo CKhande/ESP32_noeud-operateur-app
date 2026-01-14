@@ -1,5 +1,6 @@
 # ---------------------------------------------------------
 # DASHBOARD STREAMLIT (POLLING MQTT + COMMANDES LED)
+# + DETECTION FLAMME STEFFY (capteur/data)
 # ---------------------------------------------------------
 
 import streamlit as st
@@ -23,13 +24,21 @@ if "history" not in st.session_state:
 if "led_state" not in st.session_state:
     st.session_state.led_state = 0  # LED OFF par défaut
 
+# ✅ AJOUT : état feu Steffy
+if "flame_steffy" not in st.session_state:
+    st.session_state.flame_steffy = None  # None = pas reçu
+
 # ---------------------------------------------------------
 # MQTT CONFIG
 # ---------------------------------------------------------
 BROKER = "51.103.239.173"
 PORT = 1883
-TOPIC = "noeud/operateur"
-TOPIC_CMD = "noeud/operateur/cmd"   # Commande LED IO2
+
+TOPIC = "noeud/operateur"          # DONNEES HANDE (JSON)
+TOPIC_CMD = "noeud/operateur/cmd"  # Commande LED IO2
+
+# ✅ AJOUT : DONNEES STEFFY (JSON global)
+TOPIC_STEFFY = "capteur/data"      # Steffy publie ici (flame=0/1)
 
 # ---------------------------------------------------------
 # ENVOI COMMANDE LED
@@ -45,9 +54,9 @@ def send_led_command(state):
         st.error(f"Erreur MQTT LED: {e}")
 
 # ---------------------------------------------------------
-# POLLING MQTT
+# POLLING MQTT (GENERIC) -> retourne le dernier message brut
 # ---------------------------------------------------------
-def poll_mqtt():
+def poll_mqtt_topic(topic_name, wait_s=0.5):
     client = mqtt.Client()
     messages = []
 
@@ -61,9 +70,9 @@ def poll_mqtt():
 
     try:
         client.connect(BROKER, PORT, 60)
-        client.subscribe(TOPIC)
+        client.subscribe(topic_name)
         client.loop_start()
-        time.sleep(0.5)
+        time.sleep(wait_s)
         client.loop_stop()
         client.disconnect()
     except:
@@ -74,9 +83,9 @@ def poll_mqtt():
     return None
 
 # ---------------------------------------------------------
-# LECTURE DES DONNÉES MQTT
+# 1) LECTURE DES DONNÉES HANDE (noeud/operateur)
 # ---------------------------------------------------------
-raw = poll_mqtt()
+raw = poll_mqtt_topic(TOPIC)
 
 if raw:
     try:
@@ -98,14 +107,27 @@ if raw:
         hist["ir"].append(st.session_state.data["ir"])
 
     except:
-        st.write("Erreur JSON :", raw)
+        st.write("Erreur JSON (Hande) :", raw)
+
+# ---------------------------------------------------------
+# 2) ✅ AJOUT : LECTURE DU FEU STEFFY (capteur/data)
+# ---------------------------------------------------------
+raw_steffy = poll_mqtt_topic(TOPIC_STEFFY)
+
+if raw_steffy:
+    try:
+        payload_s = json.loads(raw_steffy)
+        # Steffy envoie: "flame":0/1
+        st.session_state.flame_steffy = payload_s.get("flame", None)
+    except:
+        # si pas JSON, on ignore
+        pass
 
 # ---------------------------------------------------------
 # UI PRINCIPALE
 # ---------------------------------------------------------
-
-st.title("📡 Dashboard ESP32 - Temps Réel")
-st.write("Données reçues via MQTT + Contrôle LED IO2")
+st.title("📡 Dashboard ESP32 - Temps Réel (Hande)")
+st.write("Données via MQTT + Contrôle LED IO2 + 🔥 Détection flamme Steffy")
 
 d = st.session_state.data
 
@@ -133,12 +155,25 @@ with col3:
     plot_gauge(d["pot"], "Potentiomètre", 0, 4095, "orange")
 
 with col4:
-    plot_gauge(d["ir"], "IR (Flamme)", 0, 1, "green" if d["ir"] == 0 else "red")
+    plot_gauge(d["ir"], "IR (Flamme Hande)", 0, 1, "green" if d["ir"] == 0 else "red")
+
+# ---------------------------------------------------------
+# ✅ AJOUT : FEU STEFFY (AFFICHAGE SIMPLE)
+# ---------------------------------------------------------
+st.markdown("### 🔥 Flamme Steffy (depuis capteur/data)")
+
+fs = st.session_state.flame_steffy
+if fs is None:
+    st.info("En attente des données Steffy…")
+elif int(fs) == 1:
+    st.error("🔥 FEU DÉTECTÉ chez Steffy !")
+else:
+    st.success("✅ Pas de flamme chez Steffy")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 🟦 CONTRÔLE LED IO2 (PLACÉ JUSTE APRÈS LES GAUGES)
+# 🟦 CONTRÔLE LED IO2
 # ---------------------------------------------------------
 st.header("💡 Contrôle de la LED IO2 (ESP32)")
 
@@ -172,5 +207,6 @@ if len(df) > 1:
 else:
     st.info("En attente de premières données MQTT…")
 
-# AUTO REFRESH TOUTES LES SECONDES
+# AUTO REFRESH
+time.sleep(1)
 st.rerun()
